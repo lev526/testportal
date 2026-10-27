@@ -1,0 +1,13 @@
+# Зависимости фронтенда
+frontend/node_modules/
+frontend/dist/
+
+# Загруженные картинки (кроме самой папки)
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# Системные файлы и IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
