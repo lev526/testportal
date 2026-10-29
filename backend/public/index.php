@@ -13,6 +13,7 @@ if (str_starts_with($uri, '/uploads/') && is_file(__DIR__ . $uri)) {
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../handlers/auth.php';
+require_once __DIR__ . '/../handlers/tests.php';
 
 try {
     // --- Маршруты авторизации (Сессия 2) ---
@@ -27,6 +28,26 @@ try {
     }
     if ($method === 'GET' && $uri === '/api/me') {
         handleMe();
+    }
+
+    // --- Маршруты редактора тестов и загрузки (Сессия 3) ---
+    if ($method === 'GET' && $uri === '/api/tests') {
+        handleGetTests();
+    }
+    if ($method === 'POST' && $uri === '/api/tests') {
+        handleCreateTest();
+    }
+    if ($method === 'POST' && $uri === '/api/upload') {
+        handleUpload();
+    }
+    if ($method === 'GET' && preg_match('#^/api/tests/(\d+)/edit$#', $uri, $m)) {
+        handleGetTestEdit((int)$m[1]);
+    }
+    if ($method === 'PUT' && preg_match('#^/api/tests/(\d+)$#', $uri, $m)) {
+        handleUpdateTest((int)$m[1]);
+    }
+    if ($method === 'DELETE' && preg_match('#^/api/tests/(\d+)$#', $uri, $m)) {
+        handleDeleteTest((int)$m[1]);
     }
 
     // Если ни один маршрут не подошёл

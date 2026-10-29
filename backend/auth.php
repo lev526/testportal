@@ -35,6 +35,11 @@ function getJsonBody(): array
         return [];
     }
 
+    // Удаляем метку UTF-8 BOM (\xEF\xBB\xBF), которую добавляет Windows PowerShell
+    if (str_starts_with($raw, "\xEF\xBB\xBF")) {
+        $raw = substr($raw, 3);
+    }
+
     $data = json_decode($raw, true);
     if (!is_array($data)) {
         jsonError('Некорректный формат JSON', 400);
