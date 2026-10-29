@@ -2,24 +2,35 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../db.php';
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
+$method = $_SERVER['REQUEST_METHOD'];
 
-header('Content-Type: application/json; charset=utf-8');
+// Позволяем встроенному серверу PHP отдавать загруженные картинки напрямую
+if (str_starts_with($uri, '/uploads/') && is_file(__DIR__ . $uri)) {
+    return false;
+}
+
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../handlers/auth.php';
 
 try {
-    $pdo = getDb();
-    // Проверим, что таблица users читается и админ на месте
-    $stmt = $pdo->query('SELECT id, login, role FROM users LIMIT 1');
-    $admin = $stmt->fetch();
+    // --- Маршруты авторизации (Сессия 2) ---
+    if ($method === 'POST' && $uri === '/api/register') {
+        handleRegister();
+    }
+    if ($method === 'POST' && $uri === '/api/login') {
+        handleLogin();
+    }
+    if ($method === 'POST' && $uri === '/api/logout') {
+        handleLogout();
+    }
+    if ($method === 'GET' && $uri === '/api/me') {
+        handleMe();
+    }
 
-    echo json_encode([
-        'status' => 'ok',
-        'message' => 'Бэкенд и подключение к MySQL работают!',
-        'first_user' => $admin,
-    ], JSON_UNESCAPED_UNICODE);
+    // Если ни один маршрут не подошёл
+    jsonError('Маршрут не найден', 404);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode([
-        'error' => 'Ошибка подключения к БД: ' . $e->getMessage(),
-    ], JSON_UNESCAPED_UNICODE);
+    jsonError('Внутренняя ошибка сервера: ' . $e->getMessage(), 500);
 }
