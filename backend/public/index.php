@@ -14,6 +14,7 @@ require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../handlers/auth.php';
 require_once __DIR__ . '/../handlers/tests.php';
+require_once __DIR__ . '/../handlers/attempts.php';
 
 try {
     // --- Маршруты авторизации (Сессия 2) ---
@@ -48,6 +49,23 @@ try {
     }
     if ($method === 'DELETE' && preg_match('#^/api/tests/(\d+)$#', $uri, $m)) {
         handleDeleteTest((int)$m[1]);
+    }
+
+    // --- Маршруты прохождения тестов и результатов (Сессия 4) ---
+    if ($method === 'POST' && preg_match('#^/api/tests/(\d+)/start$#', $uri, $m)) {
+        handleStartAttempt((int)$m[1]);
+    }
+    if ($method === 'POST' && preg_match('#^/api/attempts/(\d+)/submit$#', $uri, $m)) {
+        handleSubmitAttempt((int)$m[1]);
+    }
+    if ($method === 'GET' && preg_match('#^/api/attempts/(\d+)$#', $uri, $m)) {
+        handleGetAttempt((int)$m[1]);
+    }
+    if ($method === 'GET' && $uri === '/api/my/attempts') {
+        handleGetMyAttempts();
+    }
+    if ($method === 'GET' && preg_match('#^/api/tests/(\d+)/results$#', $uri, $m)) {
+        handleGetTestResults((int)$m[1]);
     }
 
     // Если ни один маршрут не подошёл
