@@ -4,6 +4,8 @@ import { apiRequest } from './api';
 import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import AdminTestsPage from './pages/AdminTestsPage';
+import TestEditorPage from './pages/TestEditorPage';
 
 function RequireAuth({ user, children }) {
   if (!user) {
@@ -58,7 +60,7 @@ export default function App() {
                 <div className="card p-4">
                   <h4>Доступные тесты</h4>
                   <p className="text-muted mb-0">
-                    Добро пожаловать, {user?.login}! Список тестов подключим в следующих сессиях.
+                    Добро пожаловать, {user?.login}! Список тестов и прохождение подключим в 7-й сессии.
                   </p>
                 </div>
               </RequireAuth>
@@ -81,10 +83,25 @@ export default function App() {
             path="/admin/tests"
             element={
               <RequireAdmin user={user}>
-                <div className="card p-4">
-                  <h4>Редактор тестов (Админ-панель)</h4>
-                  <p className="text-muted mb-0">Редактор тестов реализуем в 6-й сессии.</p>
-                </div>
+                <AdminTestsPage />
+              </RequireAdmin>
+            }
+          />
+
+          <Route
+            path="/admin/tests/new"
+            element={
+              <RequireAdmin user={user}>
+                <TestEditorPage />
+              </RequireAdmin>
+            }
+          />
+
+          <Route
+            path="/admin/tests/:id/edit"
+            element={
+              <RequireAdmin user={user}>
+                <TestEditorPage />
               </RequireAdmin>
             }
           />
