@@ -6,6 +6,9 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminTestsPage from './pages/AdminTestsPage';
 import TestEditorPage from './pages/TestEditorPage';
+import TestsListPage from './pages/TestsListPage';
+import TakeTestPage from './pages/TakeTestPage';
+import AttemptResultPage from './pages/AttemptResultPage';
 
 function RequireAuth({ user, children }) {
   if (!user) {
@@ -46,23 +49,44 @@ export default function App() {
         <Routes>
           <Route
             path="/login"
-            element={user ? <Navigate to="/" replace /> : <LoginPage setUser={setUser} />}
+            element={
+              user ? <Navigate to="/" replace /> : <LoginPage setUser={setUser} />
+            }
           />
           <Route
             path="/register"
-            element={user ? <Navigate to="/" replace /> : <RegisterPage setUser={setUser} />}
+            element={
+              user ? (
+                <Navigate to="/" replace />
+              ) : (
+                <RegisterPage setUser={setUser} />
+              )
+            }
           />
 
           <Route
             path="/"
             element={
               <RequireAuth user={user}>
-                <div className="card p-4">
-                  <h4>Доступные тесты</h4>
-                  <p className="text-muted mb-0">
-                    Добро пожаловать, {user?.login}! Список тестов и прохождение подключим в 7-й сессии.
-                  </p>
-                </div>
+                <TestsListPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/tests/:id/take"
+            element={
+              <RequireAuth user={user}>
+                <TakeTestPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/attempts/:id"
+            element={
+              <RequireAuth user={user}>
+                <AttemptResultPage />
               </RequireAuth>
             }
           />
@@ -73,7 +97,9 @@ export default function App() {
               <RequireAuth user={user}>
                 <div className="card p-4">
                   <h4>Мои попытки</h4>
-                  <p className="text-muted mb-0">История попыток появится в 8-й сессии.</p>
+                  <p className="text-muted mb-0">
+                    История попыток появится в 8-й сессии.
+                  </p>
                 </div>
               </RequireAuth>
             }
