@@ -20,8 +20,8 @@ function handleGetTests(): void
             t.description,
             t.max_attempts,
             (SELECT COUNT(*) FROM questions q WHERE q.test_id = t.id) AS questions_count,
-            (SELECT COUNT(*) FROM attempts a WHERE a.test_id = t.id AND a.user_id = ?) AS used_attempts,
-            (SELECT COUNT(*) FROM attempts a WHERE a.test_id = t.id) AS total_attempts
+            (SELECT COUNT(*) FROM attempts a WHERE a.test_id = t.id AND a.user_id = ? AND a.finished_at IS NOT NULL) AS used_attempts,
+            (SELECT COUNT(*) FROM attempts a WHERE a.test_id = t.id AND a.finished_at IS NOT NULL) AS total_attempts
         FROM tests t
         ORDER BY t.id DESC
     ';
@@ -66,7 +66,7 @@ function handleGetTestEdit(int $testId): void
         jsonError('Тест не найден', 404);
     }
 
-    $stmtAtt = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ?');
+    $stmtAtt = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ? AND finished_at IS NOT NULL');
     $stmtAtt->execute([$testId]);
     $hasAttempts = ((int)$stmtAtt->fetchColumn()) > 0;
 
@@ -293,13 +293,12 @@ function handleUpdateTest(int $testId): void
         jsonError('Лимит попыток должен быть целым числом не меньше 1', 400);
     }
 
-    // Проверяем, есть ли уже попытки по этому тесту
-    $stmtAtt = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ?');
+    // Проверяем, есть ли уже завершённые попытки по этому тесту
+    $stmtAtt = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ? AND finished_at IS NOT NULL');
     $stmtAtt->execute([$testId]);
     $hasAttempts = ((int)$stmtAtt->fetchColumn()) > 0;
 
     if ($hasAttempts) {
-        // Если есть попытки — запрещаем менять вопросы и ответы
         if (array_key_exists('questions', $body)) {
             jsonError(
                 'Нельзя менять вопросы и ответы у теста с существующими попытками (можно изменить только название, описание и лимит)',
@@ -317,10 +316,12 @@ function handleUpdateTest(int $testId): void
 
     $pdo->beginTransaction();
     try {
+        // Удаляем незавершённые черновые попытки перед обновлением структуры вопросов
+        $pdo->prepare('DELETE FROM attempts WHERE test_id = ? AND finished_at IS NULL')->execute([$testId]);
+
         $stmtUpd = $pdo->prepare('UPDATE tests SET title = ?, description = ?, max_attempts = ? WHERE id = ?');
         $stmtUpd->execute([$title, $description, $maxAttempts, $testId]);
 
-        // Удаляем старые вопросы (ответы удалятся каскадно через ON DELETE CASCADE)
         $stmtDel = $pdo->prepare('DELETE FROM questions WHERE test_id = ?');
         $stmtDel->execute([$testId]);
 
@@ -371,13 +372,11 @@ function handleUpload(): void
         jsonError('Ошибка при загрузке файла (код ' . (int)$file['error'] . ')', 400);
     }
 
-    // 1. Лимит размера: 5 МБ
     $maxSize = 5 * 1024 * 1024;
     if (($file['size'] ?? 0) > $maxSize) {
         jsonError('Размер файла не должен превышать 5 МБ', 400);
     }
 
-    // 2. Белый список MIME-типов по реальному содержимому файла
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->file($file['tmp_name']);
 
@@ -392,7 +391,6 @@ function handleUpload(): void
         jsonError('Разрешены только изображения: JPG, PNG, GIF, WEBP', 400);
     }
 
-    // 3. Случайное имя файла
     $ext = $allowedTypes[$mime];
     $filename = bin2hex(random_bytes(16)) . '.' . $ext;
     $uploadDir = __DIR__ . '/../public/uploads';

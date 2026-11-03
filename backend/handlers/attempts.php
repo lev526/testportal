@@ -24,7 +24,6 @@ function handleStartAttempt(int $testId): void
     $user = requireLogin();
     $pdo = getDb();
 
-    // 1. Проверяем существование теста
     $stmt = $pdo->prepare('SELECT id, title, description, max_attempts FROM tests WHERE id = ?');
     $stmt->execute([$testId]);
     $test = $stmt->fetch();
@@ -33,8 +32,12 @@ function handleStartAttempt(int $testId): void
         jsonError('Тест не найден', 404);
     }
 
-    // 2. Проверяем лимит попыток (попытка тратится при старте)
-    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ? AND user_id = ?');
+    // Удаляем предыдущие незавершённые попытки этого пользователя по данному тесту
+    $stmtClean = $pdo->prepare('DELETE FROM attempts WHERE test_id = ? AND user_id = ? AND finished_at IS NULL');
+    $stmtClean->execute([$testId, $user['id']]);
+
+    // Считаем только завершённые попытки
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ? AND user_id = ? AND finished_at IS NOT NULL');
     $stmtCount->execute([$testId, $user['id']]);
     $usedAttempts = (int)$stmtCount->fetchColumn();
     $maxAttempts = (int)$test['max_attempts'];
@@ -43,7 +46,6 @@ function handleStartAttempt(int $testId): void
         jsonError('Исчерпан лимит попыток для этого теста', 409);
     }
 
-    // 3. Загружаем вопросы теста
     $stmtQ = $pdo->prepare('SELECT id, text, type, weight, image_path FROM questions WHERE test_id = ? ORDER BY id ASC');
     $stmtQ->execute([$testId]);
     $questions = $stmtQ->fetchAll();
@@ -52,13 +54,11 @@ function handleStartAttempt(int $testId): void
         jsonError('В тесте нет вопросов', 400);
     }
 
-    // Считаем максимальный балл (сумма весов всех вопросов)
     $maxScore = 0;
     foreach ($questions as $q) {
         $maxScore += (int)$q['weight'];
     }
 
-    // 4. Создаём запись попытки (finished_at = NULL означает, что попытка идёт)
     $stmtIns = $pdo->prepare('
         INSERT INTO attempts (user_id, test_id, started_at, finished_at, score, max_score)
         VALUES (?, ?, NOW(), NULL, 0, ?)
@@ -66,7 +66,6 @@ function handleStartAttempt(int $testId): void
     $stmtIns->execute([$user['id'], $testId, $maxScore]);
     $attemptId = (int)$pdo->lastInsertId();
 
-    // 5. Загружаем варианты ответов строго БЕЗ поля is_correct
     $stmtA = $pdo->prepare('SELECT id, text FROM answers WHERE question_id = ? ORDER BY id ASC');
 
     $formattedQuestions = [];
@@ -104,15 +103,43 @@ function handleStartAttempt(int $testId): void
 }
 
 /**
+ * DELETE /api/attempts/{id} — Отменить незавершённую попытку при выходе из теста
+ */
+function handleCancelAttempt(int $attemptId): void
+{
+    $user = requireLogin();
+    $pdo = getDb();
+
+    $stmt = $pdo->prepare('SELECT id, user_id, finished_at FROM attempts WHERE id = ?');
+    $stmt->execute([$attemptId]);
+    $attempt = $stmt->fetch();
+
+    if (!$attempt) {
+        jsonResponse(['status' => 'already_removed']);
+    }
+
+    if ((int)$attempt['user_id'] !== (int)$user['id']) {
+        jsonError('Доступ запрещён: это чужая попытка', 403);
+    }
+
+    if ($attempt['finished_at'] !== null) {
+        jsonError('Нельзя отменить уже завершённую попытку', 409);
+    }
+
+    $stmtDel = $pdo->prepare('DELETE FROM attempts WHERE id = ?');
+    $stmtDel->execute([$attemptId]);
+
+    jsonResponse(['status' => 'cancelled']);
+}
+
+/**
  * POST /api/attempts/{id}/submit — Принять ответы, посчитать баллы на сервере, вернуть результат
- * Ожидаемый формат JSON: { "answers": { "questionId": [answerId1, answerId2], ... } }
  */
 function handleSubmitAttempt(int $attemptId): void
 {
     $user = requireLogin();
     $pdo = getDb();
 
-    // 1. Загружаем попытку и проверяем права и статус
     $stmt = $pdo->prepare('SELECT id, user_id, test_id, started_at, finished_at FROM attempts WHERE id = ?');
     $stmt->execute([$attemptId]);
     $attempt = $stmt->fetch();
@@ -135,7 +162,17 @@ function handleSubmitAttempt(int $attemptId): void
 
     $testId = (int)$attempt['test_id'];
 
-    // 2. Загружаем вопросы и правильные ответы из БД
+    // Проверяем лимит ещё раз перед фиксацией результата
+    $stmtTest = $pdo->prepare('SELECT max_attempts FROM tests WHERE id = ?');
+    $stmtTest->execute([$testId]);
+    $maxAttempts = (int)$stmtTest->fetchColumn();
+
+    $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ? AND user_id = ? AND finished_at IS NOT NULL');
+    $stmtCount->execute([$testId, $user['id']]);
+    if ((int)$stmtCount->fetchColumn() >= $maxAttempts) {
+        jsonError('Исчерпан лимит попыток для этого теста', 409);
+    }
+
     $stmtQ = $pdo->prepare('SELECT id, weight FROM questions WHERE test_id = ?');
     $stmtQ->execute([$testId]);
     $questions = $stmtQ->fetchAll();
@@ -144,7 +181,7 @@ function handleSubmitAttempt(int $attemptId): void
 
     $totalScore = 0;
     $maxScore = 0;
-    $rowsToInsert = []; // [question_id, answer_id]
+    $rowsToInsert = [];
 
     foreach ($questions as $q) {
         $qId = (int)$q['id'];
@@ -166,13 +203,11 @@ function handleSubmitAttempt(int $attemptId): void
         }
         sort($correctAnswerIds);
 
-        // Извлекаем ответы пользователя для данного вопроса (поддерживаем и массив, и одиночный ID)
         $rawSelected = $submittedAnswers[(string)$qId] ?? $submittedAnswers[$qId] ?? [];
         if (!is_array($rawSelected)) {
             $rawSelected = [$rawSelected];
         }
 
-        // Оставляем только реально существующие у этого вопроса ID ответов без дубликатов
         $userSelectedIds = [];
         foreach ($rawSelected as $val) {
             $aId = filter_var($val, FILTER_VALIDATE_INT);
@@ -187,13 +222,11 @@ function handleSubmitAttempt(int $attemptId): void
             $rowsToInsert[] = [$qId, $aId];
         }
 
-        // Правило контракта: балл = вес, если выбран РОВНО правильный набор, иначе 0
         if ($userSelectedIds === $correctAnswerIds) {
             $totalScore += $weight;
         }
     }
 
-    // 3. Сохраняем выбранные ответы и закрываем попытку в транзакции
     $pdo->beginTransaction();
     try {
         $stmtInsAns = $pdo->prepare('
@@ -219,7 +252,6 @@ function handleSubmitAttempt(int $attemptId): void
         throw $e;
     }
 
-    // Возвращаем готовый результат попытки
     handleGetAttempt($attemptId);
 }
 
@@ -252,7 +284,6 @@ function handleGetAttempt(int $attemptId): void
         jsonError('Попытка не найдена', 404);
     }
 
-    // Смотреть попытку может только её автор или админ
     if ((int)$row['user_id'] !== (int)$user['id'] && ($user['role'] ?? '') !== 'admin') {
         jsonError('Доступ запрещён: это чужая попытка', 403);
     }
@@ -273,7 +304,7 @@ function handleGetAttempt(int $attemptId): void
 }
 
 /**
- * GET /api/my/attempts — История попыток текущего пользователя
+ * GET /api/my/attempts — История завершённых попыток текущего пользователя
  */
 function handleGetMyAttempts(): void
 {
@@ -291,8 +322,8 @@ function handleGetMyAttempts(): void
             a.max_score
         FROM attempts a
         JOIN tests t ON t.id = a.test_id
-        WHERE a.user_id = ?
-        ORDER BY a.started_at DESC, a.id DESC
+        WHERE a.user_id = ? AND a.finished_at IS NOT NULL
+        ORDER BY a.finished_at DESC, a.id DESC
     ');
     $stmt->execute([$user['id']]);
     $rows = $stmt->fetchAll();
@@ -344,8 +375,8 @@ function handleGetTestResults(int $testId): void
             a.max_score
         FROM attempts a
         JOIN users u ON u.id = a.user_id
-        WHERE a.test_id = ?
-        ORDER BY a.started_at DESC, a.id DESC
+        WHERE a.test_id = ? AND a.finished_at IS NOT NULL
+        ORDER BY a.finished_at DESC, a.id DESC
     ');
     $stmt->execute([$testId]);
     $rows = $stmt->fetchAll();

@@ -9,6 +9,8 @@ import TestEditorPage from './pages/TestEditorPage';
 import TestsListPage from './pages/TestsListPage';
 import TakeTestPage from './pages/TakeTestPage';
 import AttemptResultPage from './pages/AttemptResultPage';
+import MyAttemptsPage from './pages/MyAttemptsPage';
+import AdminTestResultsPage from './pages/AdminTestResultsPage';
 
 function RequireAuth({ user, children }) {
   if (!user) {
@@ -95,12 +97,7 @@ export default function App() {
             path="/my/attempts"
             element={
               <RequireAuth user={user}>
-                <div className="card p-4">
-                  <h4>Мои попытки</h4>
-                  <p className="text-muted mb-0">
-                    История попыток появится в 8-й сессии.
-                  </p>
-                </div>
+                <MyAttemptsPage />
               </RequireAuth>
             }
           />
@@ -128,6 +125,15 @@ export default function App() {
             element={
               <RequireAdmin user={user}>
                 <TestEditorPage />
+              </RequireAdmin>
+            }
+          />
+
+          <Route
+            path="/admin/tests/:id/results"
+            element={
+              <RequireAdmin user={user}>
+                <AdminTestResultsPage />
               </RequireAdmin>
             }
           />

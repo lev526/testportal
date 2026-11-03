@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api';
 
 export default function TakeTestPage() {
@@ -9,9 +9,9 @@ export default function TakeTestPage() {
 
   const [selected, setSelected] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const [error, setError] = useState('');
 
-  // Если страница открыта напрямую без старта попытки, возвращаем к списку тестов
   if (!attemptData || !attemptData.attempt_id) {
     return <Navigate to="/" replace />;
   }
@@ -37,6 +37,17 @@ export default function TakeTestPage() {
         [questionId]: updated,
       };
     });
+  }
+
+  async function handleExit() {
+    setExiting(true);
+    try {
+      await apiRequest(`/api/attempts/${attemptId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      navigate(-1);
+    }
   }
 
   async function handleSubmit(e) {
@@ -65,9 +76,14 @@ export default function TakeTestPage() {
             <div className="text-muted">{test.description}</div>
           )}
         </div>
-        <Link to="/" className="btn btn-outline-secondary btn-sm">
-          К списку тестов
-        </Link>
+        <button
+          type="button"
+          className="btn btn-outline-secondary btn-sm"
+          disabled={exiting || submitting}
+          onClick={handleExit}
+        >
+          {exiting ? 'Выход...' : 'Выйти без завершения'}
+        </button>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
@@ -145,7 +161,7 @@ export default function TakeTestPage() {
           <button
             type="submit"
             className="btn btn-success btn-lg"
-            disabled={submitting}
+            disabled={submitting || exiting}
           >
             {submitting ? 'Отправка ответов...' : 'Завершить тест'}
           </button>

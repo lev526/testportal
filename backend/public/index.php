@@ -51,12 +51,15 @@ try {
         handleDeleteTest((int)$m[1]);
     }
 
-    // --- Маршруты прохождения тестов и результатов (Сессия 4) ---
+// --- Маршруты прохождения тестов и результатов (Сессия 4) ---
     if ($method === 'POST' && preg_match('#^/api/tests/(\d+)/start$#', $uri, $m)) {
         handleStartAttempt((int)$m[1]);
     }
     if ($method === 'POST' && preg_match('#^/api/attempts/(\d+)/submit$#', $uri, $m)) {
         handleSubmitAttempt((int)$m[1]);
+    }
+    if ($method === 'DELETE' && preg_match('#^/api/attempts/(\d+)$#', $uri, $m)) {
+        handleCancelAttempt((int)$m[1]);
     }
     if ($method === 'GET' && preg_match('#^/api/attempts/(\d+)$#', $uri, $m)) {
         handleGetAttempt((int)$m[1]);
