@@ -6,9 +6,6 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-/**
- * Отправляет JSON-ответ с нужным HTTP-кодом и завершает скрипт
- */
 function jsonResponse(mixed $data, int $status = 200): never
 {
     http_response_code($status);
@@ -17,17 +14,13 @@ function jsonResponse(mixed $data, int $status = 200): never
     exit;
 }
 
-/**
- * Отправляет JSON с текстом ошибки и HTTP-кодом (400, 401, 403, 404, 409, 500)
- */
+
 function jsonError(string $message, int $status = 400): never
 {
     jsonResponse(['error' => $message], $status);
 }
 
-/**
- * Читает тело запроса и декодирует JSON в массив
- */
+
 function getJsonBody(): array
 {
     $raw = file_get_contents('php://input');
@@ -35,7 +28,7 @@ function getJsonBody(): array
         return [];
     }
 
-    // Удаляем метку UTF-8 BOM (\xEF\xBB\xBF), которую добавляет Windows PowerShell
+
     if (str_starts_with($raw, "\xEF\xBB\xBF")) {
         $raw = substr($raw, 3);
     }
@@ -48,9 +41,7 @@ function getJsonBody(): array
     return $data;
 }
 
-/**
- * Проверяет, что пользователь вошёл в систему, и возвращает его данные
- */
+
 function requireLogin(): array
 {
     if (empty($_SESSION['user'])) {
@@ -60,9 +51,7 @@ function requireLogin(): array
     return $_SESSION['user'];
 }
 
-/**
- * Проверяет, что пользователь — администратор
- */
+
 function requireAdmin(): array
 {
     $user = requireLogin();

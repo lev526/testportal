@@ -5,9 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../auth.php';
 
-/**
- * Считает процент правильных ответов: сумма баллов / сумма весов * 100%
- */
+
 function calcPercentage(int $score, int $maxScore): float
 {
     if ($maxScore <= 0) {
@@ -16,9 +14,7 @@ function calcPercentage(int $score, int $maxScore): float
     return round(($score / $maxScore) * 100, 1);
 }
 
-/**
- * POST /api/tests/{id}/start — Начать попытку, вернуть вопросы БЕЗ is_correct
- */
+
 function handleStartAttempt(int $testId): void
 {
     $user = requireLogin();
@@ -32,11 +28,11 @@ function handleStartAttempt(int $testId): void
         jsonError('Тест не найден', 404);
     }
 
-    // Удаляем предыдущие незавершённые попытки этого пользователя по данному тесту
+
     $stmtClean = $pdo->prepare('DELETE FROM attempts WHERE test_id = ? AND user_id = ? AND finished_at IS NULL');
     $stmtClean->execute([$testId, $user['id']]);
 
-    // Считаем только завершённые попытки
+
     $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM attempts WHERE test_id = ? AND user_id = ? AND finished_at IS NOT NULL');
     $stmtCount->execute([$testId, $user['id']]);
     $usedAttempts = (int)$stmtCount->fetchColumn();
@@ -102,9 +98,7 @@ function handleStartAttempt(int $testId): void
     ], 201);
 }
 
-/**
- * DELETE /api/attempts/{id} — Отменить незавершённую попытку при выходе из теста
- */
+
 function handleCancelAttempt(int $attemptId): void
 {
     $user = requireLogin();
@@ -132,9 +126,7 @@ function handleCancelAttempt(int $attemptId): void
     jsonResponse(['status' => 'cancelled']);
 }
 
-/**
- * POST /api/attempts/{id}/submit — Принять ответы, посчитать баллы на сервере, вернуть результат
- */
+
 function handleSubmitAttempt(int $attemptId): void
 {
     $user = requireLogin();
@@ -162,7 +154,7 @@ function handleSubmitAttempt(int $attemptId): void
 
     $testId = (int)$attempt['test_id'];
 
-    // Проверяем лимит ещё раз перед фиксацией результата
+
     $stmtTest = $pdo->prepare('SELECT max_attempts FROM tests WHERE id = ?');
     $stmtTest->execute([$testId]);
     $maxAttempts = (int)$stmtTest->fetchColumn();
@@ -255,9 +247,7 @@ function handleSubmitAttempt(int $attemptId): void
     handleGetAttempt($attemptId);
 }
 
-/**
- * GET /api/attempts/{id} — Результат конкретной попытки
- */
+
 function handleGetAttempt(int $attemptId): void
 {
     $user = requireLogin();
@@ -303,9 +293,7 @@ function handleGetAttempt(int $attemptId): void
     ]);
 }
 
-/**
- * GET /api/my/attempts — История завершённых попыток текущего пользователя
- */
+
 function handleGetMyAttempts(): void
 {
     $user = requireLogin();
@@ -348,9 +336,7 @@ function handleGetMyAttempts(): void
     jsonResponse($result);
 }
 
-/**
- * GET /api/tests/{id}/results — Результаты всех пользователей по тесту (для админа)
- */
+
 function handleGetTestResults(int $testId): void
 {
     requireAdmin();

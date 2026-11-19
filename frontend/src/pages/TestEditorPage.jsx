@@ -98,7 +98,6 @@ export default function TestEditorPage() {
         if (q.uid !== qUid) return q;
         const updated = { ...q, ...changes };
 
-        // Если переключили тип на single, оставляем максимум один правильный ответ
         if (changes.type === 'single') {
           let foundFirst = false;
           updated.answers = updated.answers.map((a) => {
@@ -211,7 +210,6 @@ export default function TestEditorPage() {
         max_attempts: Number(form.max_attempts),
       };
 
-      // Если у теста ещё нет попыток, отправляем вопросы и ответы
       if (!form.has_attempts) {
         payload.questions = form.questions.map((q) => ({
           text: q.text,

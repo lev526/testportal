@@ -2,7 +2,7 @@ export async function apiRequest(url, options = {}) {
   const headers = { ...(options.headers || {}) };
   let body = options.body;
 
-  // Если передан обычный объект (не FormData для картинок), сериализуем в JSON
+
   if (body && typeof body === 'object' && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(body);
